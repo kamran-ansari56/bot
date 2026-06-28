@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowLeft, Send, Eye, EyeOff, RotateCcw, Gauge, Sparkles, Lock,
   Stethoscope, Inbox, BarChart3, Dumbbell, Wind, Target, CheckCircle2, LogOut,
+  Mic, Volume2, VolumeX,
 } from "lucide-react";
 
 const C = {
@@ -116,6 +117,22 @@ function Hub({ store, go, logActivity, shell, email, onSignOut }) {
   const today = dayStr();
   const missionDone = (store.log || []).some((e) => e.mode === "mission" && dayStr(new Date(e.ts)) === today);
   const [mission, setMission] = useState(() => MISSIONS[Math.floor(Math.random() * MISSIONS.length)]);
+  const [dbOpen, setDbOpen] = useState(false);
+  const [dbText, setDbText] = useState("");
+  const [dbBusy, setDbBusy] = useState(false);
+  const [dbResult, setDbResult] = useState(null);
+  async function logMission() {
+    const t = dbText.trim();
+    if (!t) { logActivity({ mode: "mission", task: mission }); setDbOpen(false); return; }
+    setDbBusy(true);
+    const sys = "A person is debriefing a real social rep they just attempted in the field, logged from a conversation-practice app. Be blunt and specific. No flattery, no praise padding. Name one thing that genuinely worked and the single highest-leverage fix for next time. Two sentences max each.\nRespond ONLY with JSON: {\"kept\":\"\",\"fix\":\"\"}";
+    let j = null;
+    try { j = await callJSON(sys, `Today's mission: ${mission}\n\nWhat happened: ${t}`); } catch {}
+    logActivity({ mode: "mission", task: mission, debrief: t, kept: j ? j.kept : null, fix: j ? j.fix : null });
+    setDbResult(j || { kept: null, fix: null });
+    setDbOpen(false); setDbText("");
+    setDbBusy(false);
+  }
   const modes = [
     { id: "practice", icon: Dumbbell, name: "Practice", desc: "Approach a real-reacting person cold. Pick their mood, run a recovery drill, or go blind and train your own read." },
     { id: "autopsy", icon: Stethoscope, name: "Autopsy", desc: "Paste a real chat that died. Find the exact line it dropped, rewrite from there, play it forward." },
@@ -138,9 +155,21 @@ function Hub({ store, go, logActivity, shell, email, onSignOut }) {
           <div className="flex items-center" style={{ gap: 8, marginBottom: 8 }}><Target size={16} style={{ color: missionDone ? C.good : C.you }} /><span style={{ color: missionDone ? C.good : C.you, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase" }}>{missionDone ? "Mission complete today" : "Today's field mission"}</span></div>
           <div style={{ color: C.text, fontSize: 14.5, lineHeight: 1.55 }}>{mission}</div>
           <div className="flex items-center" style={{ gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-            <button onClick={() => logActivity({ mode: "mission" })} disabled={missionDone} className="flex items-center" style={{ background: missionDone ? C.raised : C.you, color: missionDone ? C.faint : C.youInk, border: "none", borderRadius: 999, padding: "7px 14px", cursor: missionDone ? "default" : "pointer", fontSize: 13, gap: 6, fontWeight: 600 }}><CheckCircle2 size={14} /> {missionDone ? "Done" : "I did it"}</button>
-            <button onClick={() => setMission(MISSIONS[Math.floor(Math.random() * MISSIONS.length)])} style={{ background: "transparent", color: C.soft, border: `1px solid ${C.line}`, borderRadius: 999, padding: "7px 14px", cursor: "pointer", fontSize: 13 }}>Swap</button>
+            <button onClick={() => setDbOpen(true)} disabled={missionDone} className="flex items-center" style={{ background: missionDone ? C.raised : C.you, color: missionDone ? C.faint : C.youInk, border: "none", borderRadius: 999, padding: "7px 14px", cursor: missionDone ? "default" : "pointer", fontSize: 13, gap: 6, fontWeight: 600 }}><CheckCircle2 size={14} /> {missionDone ? "Done" : "I did it"}</button>
+            <button onClick={() => { setMission(MISSIONS[Math.floor(Math.random() * MISSIONS.length)]); setDbOpen(false); setDbResult(null); }} style={{ background: "transparent", color: C.soft, border: `1px solid ${C.line}`, borderRadius: 999, padding: "7px 14px", cursor: "pointer", fontSize: 13 }}>Swap</button>
           </div>
+          {dbOpen && !missionDone && (
+            <div style={{ marginTop: 12 }}>
+              <textarea value={dbText} onChange={(e) => setDbText(e.target.value)} rows={3} placeholder="What happened? What you said, how they reacted, where it stalled. Optional — leave blank to just mark it done." style={{ width: "100%", resize: "vertical", background: C.raised, color: C.text, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 12px", fontSize: 14, fontFamily: BODY, outline: "none", lineHeight: 1.5 }} />
+              <button onClick={logMission} disabled={dbBusy} className="flex items-center" style={{ marginTop: 8, background: dbBusy ? C.raised : C.you, color: dbBusy ? C.faint : C.youInk, border: "none", borderRadius: 999, padding: "7px 16px", cursor: dbBusy ? "default" : "pointer", fontSize: 13, gap: 6, fontWeight: 600 }}>{dbBusy ? "Reading it back…" : "Log it"}</button>
+            </div>
+          )}
+          {dbResult && (dbResult.kept || dbResult.fix) && (
+            <div style={{ marginTop: 12, border: `1px solid ${C.line}`, borderRadius: 12, background: C.panel, padding: "12px 14px" }}>
+              {dbResult.kept && <div style={{ marginBottom: dbResult.fix ? 10 : 0 }}><div style={{ color: C.good, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 3 }}>Worked</div><div style={{ color: C.text, fontSize: 13.5, lineHeight: 1.5 }}>{dbResult.kept}</div></div>}
+              {dbResult.fix && <div><div style={{ color: C.you, fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 3 }}>Fix next</div><div style={{ color: C.text, fontSize: 13.5, lineHeight: 1.5 }}>{dbResult.fix}</div></div>}
+            </div>
+          )}
           <div style={{ color: C.faint, fontSize: 12, lineHeight: 1.5, marginTop: 10 }}>The reps that count happen off this screen. Simulators plateau; people don't.</div>
         </div>
         <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
@@ -182,6 +211,40 @@ function Practice({ store, logActivity, back, shell, seed, consumeSeed }) {
   const scrollRef = useRef(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, loading, feedback]);
   useEffect(() => { if (seed && seed.char) { start(seed.char, seed.messages); if (consumeSeed) consumeSeed(); } /* eslint-disable-next-line */ }, []);
+  const [voiceOut, setVoiceOut] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [sttOK, setSttOK] = useState(false);
+  const recogRef = useRef(null);
+  const spokeRef = useRef(0);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    setSttOK(true);
+    const r = new SR(); r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 1;
+    r.onresult = (e) => { const t = e.results[0][0].transcript; setInput((p) => (p ? p + " " : "") + t); };
+    r.onend = () => setListening(false);
+    r.onerror = () => setListening(false);
+    recogRef.current = r;
+    return () => { try { r.stop(); } catch {} };
+  }, []);
+  function toggleMic() {
+    const r = recogRef.current; if (!r || ended || hasPending) return;
+    if (listening) { try { r.stop(); } catch {} setListening(false); return; }
+    try { r.start(); setListening(true); } catch {}
+  }
+  function speak(text) {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    try { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 1; window.speechSynthesis.speak(u); } catch {}
+  }
+  useEffect(() => {
+    if (!voiceOut) return;
+    if (messages.length <= spokeRef.current) return;
+    const last = messages[messages.length - 1];
+    spokeRef.current = messages.length;
+    if (last && last.role === "assistant" && last.revealed && last.text) speak(last.text);
+  }, [messages, voiceOut]);
+  useEffect(() => () => { try { if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel(); } catch {} }, []);
   function start(c, seeded) { setChar(c); setMessages(seeded || []); setInterest(50); setEnded(false); setFeedback(null); setInput(""); setCalibLog([]); setGuessVal(50); setLogged(false); setStage("chat"); }
   async function openBrief(c) {
     setBriefChar(c); setBrief(null); setBriefLoading(true); setStage("brief");
@@ -328,9 +391,10 @@ function Practice({ store, logActivity, back, shell, seed, consumeSeed }) {
       </div>
       <div style={{ borderTop: `1px solid ${C.line}`, background: C.panel }}>
         <div className="mx-auto w-full" style={{ maxWidth: 720, padding: "10px 14px" }}>
-          <div className="flex items-center" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}><button onClick={getFeedback} disabled={fbLoading || messages.length < 2} style={{ fontSize: 12.5, color: messages.length < 2 ? C.faint : C.you, background: "none", border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 12px", cursor: messages.length < 2 ? "default" : "pointer" }}>{fbLoading ? "Reviewing…" : "Assess"}</button><button onClick={() => start(char)} className="flex items-center" style={{ fontSize: 12.5, color: C.soft, background: "none", border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 12px", cursor: "pointer", gap: 5 }}><RotateCcw size={13} /> Run it back</button></div>
+          <div className="flex items-center" style={{ gap: 8, marginBottom: 8, flexWrap: "wrap" }}><button onClick={getFeedback} disabled={fbLoading || messages.length < 2} style={{ fontSize: 12.5, color: messages.length < 2 ? C.faint : C.you, background: "none", border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 12px", cursor: messages.length < 2 ? "default" : "pointer" }}>{fbLoading ? "Reviewing…" : "Assess"}</button><button onClick={() => start(char)} className="flex items-center" style={{ fontSize: 12.5, color: C.soft, background: "none", border: `1px solid ${C.line}`, borderRadius: 999, padding: "5px 12px", cursor: "pointer", gap: 5 }}><RotateCcw size={13} /> Run it back</button><button onClick={() => setVoiceOut((v) => { if (v && typeof window !== "undefined" && window.speechSynthesis) { try { window.speechSynthesis.cancel(); } catch {} } return !v; })} className="flex items-center" style={{ fontSize: 12.5, color: voiceOut ? C.you : C.soft, background: "none", border: `1px solid ${voiceOut ? C.you : C.line}`, borderRadius: 999, padding: "5px 12px", cursor: "pointer", gap: 5 }}>{voiceOut ? <Volume2 size={13} /> : <VolumeX size={13} />} Voice</button></div>
           <div className="flex items-end" style={{ gap: 8 }}>
             <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} rows={1} placeholder={ended ? "They've left — run it back" : hasPending ? "Lock your read first" : messages.length === 0 ? "Make your approach…" : "Say something…"} disabled={ended || hasPending} style={{ flex: 1, resize: "none", background: C.raised, color: C.text, border: `1px solid ${C.line}`, borderRadius: 12, padding: "11px 13px", fontSize: 16, fontFamily: BODY, outline: "none", maxHeight: 120 }} />
+            {sttOK && <button onClick={toggleMic} disabled={ended || hasPending} title={listening ? "Stop" : "Speak"} className="flex items-center justify-center" style={{ background: listening ? C.you : C.raised, color: listening ? C.youInk : (ended || hasPending ? C.faint : C.soft), border: `1px solid ${listening ? C.you : C.line}`, borderRadius: 12, width: 46, height: 46, cursor: ended || hasPending ? "default" : "pointer", flexShrink: 0 }}><Mic size={18} /></button>}
             <button onClick={send} disabled={loading || ended || hasPending || !input.trim()} className="flex items-center justify-center" style={{ background: !input.trim() || ended || hasPending ? C.raised : C.you, color: !input.trim() || ended || hasPending ? C.faint : C.youInk, border: "none", borderRadius: 12, width: 46, height: 46, cursor: loading || ended || hasPending || !input.trim() ? "default" : "pointer", flexShrink: 0 }}><Send size={18} /></button>
           </div>
         </div>
@@ -429,4 +493,3 @@ function Stats({ store, back, shell }) {
     </div></div>
   );
 }
-
