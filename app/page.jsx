@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { auth, db, googleProvider } from "../lib/firebase";
+import { getAuthClient, getDbClient, getProvider } from "../lib/firebase";
 import Dojo from "../components/Dojo";
 
 const C = { ink: "#15120F", panel: "#1E1A16", raised: "#272220", line: "#3A332E", you: "#E0894F", youInk: "#241405", text: "#E9E1D6", soft: "#B3A89B", faint: "#7E7468", good: "#7FB069", bad: "#C45D4A" };
@@ -18,12 +18,16 @@ export default function Page() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => onAuthStateChanged(auth, (u) => setUser(u || null)), []);
+  useEffect(() => {
+    const auth = getAuthClient();
+    return onAuthStateChanged(auth, (u) => setUser(u || null));
+  }, []);
 
   useEffect(() => {
     if (!user) { setStore(null); return; }
     let live = true;
     setLoadingStore(true);
+    const db = getDbClient();
     getDoc(doc(db, "dojo_state", user.uid))
       .then((snap) => { if (live) setStore(snap.exists() ? (snap.data().state || DEFAULT_STORE) : DEFAULT_STORE); })
       .catch(() => { if (live) setStore(DEFAULT_STORE); })
@@ -33,17 +37,25 @@ export default function Page() {
 
   async function persist(next) {
     if (!user) return;
-    try { await setDoc(doc(db, "dojo_state", user.uid), { state: next, updated: Date.now() }, { merge: true }); } catch {}
+    try {
+      const db = getDbClient();
+      await setDoc(doc(db, "dojo_state", user.uid), { state: next, updated: Date.now() }, { merge: true });
+    } catch {}
   }
 
   async function login() {
     setErr(""); setBusy(true);
-    try { await signInWithPopup(auth, googleProvider); }
-    catch (e) { setErr(e?.message || "Sign-in failed."); }
+    try {
+      const auth = getAuthClient();
+      await signInWithPopup(auth, getProvider());
+    } catch (e) { setErr(e?.message || "Sign-in failed."); }
     setBusy(false);
   }
 
-  async function doSignOut() { await signOut(auth); }
+  async function doSignOut() {
+    const auth = getAuthClient();
+    await signOut(auth);
+  }
 
   const wrap = { background: C.ink, color: C.text, fontFamily: BODY, minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 18px" };
 
