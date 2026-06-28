@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 import React, { useState, useEffect } from "react";
 import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -11,7 +12,7 @@ const BODY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, 
 const DEFAULT_STORE = { log: [], streak: 0, lastActiveDay: null };
 
 export default function Page() {
-  const [user, setUser] = useState(undefined); // undefined = checking, null = signed out
+  const [user, setUser] = useState(undefined);
   const [store, setStore] = useState(null);
   const [loadingStore, setLoadingStore] = useState(false);
   const [err, setErr] = useState("");
@@ -34,12 +35,14 @@ export default function Page() {
     if (!user) return;
     try { await setDoc(doc(db, "dojo_state", user.uid), { state: next, updated: Date.now() }, { merge: true }); } catch {}
   }
+
   async function login() {
     setErr(""); setBusy(true);
     try { await signInWithPopup(auth, googleProvider); }
     catch (e) { setErr(e?.message || "Sign-in failed."); }
     setBusy(false);
   }
+
   async function doSignOut() { await signOut(auth); }
 
   const wrap = { background: C.ink, color: C.text, fontFamily: BODY, minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px 18px" };
@@ -65,4 +68,3 @@ export default function Page() {
 
   return <Dojo initialStore={store} persist={persist} email={user.email} onSignOut={doSignOut} />;
 }
-
